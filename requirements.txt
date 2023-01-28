@@ -1,0 +1,5 @@
+aiosqlite==0.18.0
+nextcord==2.3.2
+python-dotenv==0.21.1
+tcp_latency==0.0.12
+websockets==10.3
