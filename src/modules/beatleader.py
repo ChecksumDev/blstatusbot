@@ -12,7 +12,7 @@ from modules.status_manager import CLOUDFLARE_IMG, StatusManager, WSLogHandler
 from version import VERSION
 
 # TODO: Make this configurable by bot commands in the database
-BOT_CHANNEL = 1067928165189685328
+BOT_CHANNEL = 1067871362032611370
 
 
 class BeatLeader(commands.Cog):
@@ -28,8 +28,7 @@ class BeatLeader(commands.Cog):
     async def _pre_start(self):
         await self.bot.wait_until_ready()
 
-        self.channel: TextChannel = self.bot.get_channel(
-            1067928165189685328)  # type: ignore
+        self.channel: TextChannel = self.bot.get_channel(BOT_CHANNEL)  # type: ignore
         self.status_manager = StatusManager(self)
 
         async with aiosqlite.connect('bot.db') as db:
