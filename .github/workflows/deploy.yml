@@ -1,7 +1,6 @@
 on:
   push:
-    branches:
-      - prod
+    branches: ["dev", "prod"]
 
 jobs:
   deploy:
@@ -16,6 +15,7 @@ jobs:
           github-token: ${{ secrets.github_token }}
           version-file: "./version.json"
           output-file: "false"
+          git-branch: "dev"
 
       - name: Create Release
         uses: actions/create-release@v1
