@@ -1,7 +1,7 @@
 on:
   push:
     branches:
-      - prod
+      - dev
 
 jobs:
   deploy:
@@ -13,6 +13,7 @@ jobs:
         uses: TriPSs/conventional-changelog-action@v3
         with:
           github-token: ${{ secrets.github_token }}
+          version-file: "./src/version.py"
           output-file: "false"
 
       - name: Create Release
