@@ -1,2 +1,5 @@
-# Automatically managed version file, do not manually modify.
-VERSION = "0.0.0"
+import json
+
+with open("version.json") as json_file:
+    version_data = json.load(json_file)
+    VERSION: str = version_data["version"]
