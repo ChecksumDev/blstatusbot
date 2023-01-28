@@ -1,19 +1,19 @@
 on:
   push:
-    branches:
-      - dev
+    branches: ["prod"]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v3
       - name: Conventional Changelog
         id: changelog
         uses: TriPSs/conventional-changelog-action@v3
         with:
           github-token: ${{ secrets.github_token }}
-          version-file: "./src/version.py"
+          version-file: "./version.json"
           output-file: "false"
 
       - name: Create Release
