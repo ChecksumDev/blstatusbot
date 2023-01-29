@@ -1,11 +1,25 @@
+import aiosqlite
 from nextcord import Interaction, slash_command
 from nextcord.ext import commands
+from redis.asyncio import Redis
+from nextcord.abc import GuildChannel
 
 
 class Commands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.redis: Redis = bot.redis
 
-    @slash_command(description="Checks the current latency to BeatLeader")
-    async def ping(self, interaction: Interaction):
-        await interaction.send(content=f":ping_pong: Pong! `{self.bot.average_latency}ms`", ephemeral=True)
+    @slash_command(description="Set the channel for the bot to send alerts to.")
+    async def set_alerts_channel(self, interaction: Interaction, channel: GuildChannel):
+        async with aiosqlite.connect('bot.db') as db:
+            cursor = await db.cursor()
+            await cursor.execute("""
+                INSERT INTO bot_settings (name, value)
+                VALUES (?, ?)
+                ON CONFLICT (name)
+                DO UPDATE SET value = excluded.value
+            """, ("alert_channel", str(channel.id)))
+
+            await db.commit()
+            await interaction.send(f"Successfully set alert channel to {channel.mention}.")
