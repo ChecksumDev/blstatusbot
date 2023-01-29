@@ -27,6 +27,10 @@ class Client(commands.Bot):
         self.redis = redis.Redis()
         self.loop.create_task(self.startup())
 
+        self.add_cog(Events(self))
+        self.add_cog(Commands(self))
+        self.add_cog(BeatLeader(self))
+
     async def init_db(self, db):
         await db.execute("""CREATE TABLE IF NOT EXISTS meta
                             (version TEXT NOT NULL);""")
@@ -71,12 +75,6 @@ class Client(commands.Bot):
                     else:
                         await db.execute("INSERT INTO meta (version) VALUES (?)", (VERSION,))
                         await db.commit()
-
-        # Startup complete, init the rest of the bot
-        self.add_cog(Events(self))
-        self.add_cog(Commands(self))
-        self.add_cog(BeatLeader(self))
-
 
 client = Client(
     activity=Activity(type=ActivityType.playing,
