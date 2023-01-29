@@ -1,69 +1,42 @@
 from logging import getLogger
-from statistics import mean
-
+from typing import Optional
+import aiohttp
 import aiosqlite
-from nextcord import Color, Embed, TextChannel
+from discord import Color, Embed, TextChannel
 from nextcord.ext import commands, tasks
-from tcp_latency import measure_latency
+from redis.asyncio import Redis
 from websockets.client import connect as ws_connect
 from websockets.exceptions import ConnectionClosed, ConnectionClosedOK
 
-from modules.status_manager import CLOUDFLARE_IMG, StatusManager, WSLogHandler
-from version import VERSION
-
-# TODO: Make this configurable by bot commands in the database
-BOT_CHANNEL = 1067871362032611370
+from modules.status_manager import OFFLINE_IMG, StatusManager, WSLogHandler
 
 
 class BeatLeader(commands.Cog):
     def __init__(self, bot):
-        self.ws_con_msg_id = None
-        self.ws_con_attempts = None
-
         self.bot = bot
+        self.redis: Redis = bot.redis
 
-        self.get_beatleader_latency.start()
-        self.bot.loop.create_task(self._pre_start())
+        self.test_leaderboard.start()
+        self.bot.loop.create_task(self.connect_websocket())
 
-    async def _pre_start(self):
+    # ? Utils
+    async def _get_channel(self) -> Optional[int]:
+        async with aiosqlite.connect('bot.db') as db:
+            cursor = await db.cursor()
+            await cursor.execute("SELECT value FROM bot_settings WHERE name='alert_channel'")
+            result = await cursor.fetchone()
+
+        return int(result[0]) if result else None
+
+    # ? Websocket
+    async def connect_websocket(self):
         await self.bot.wait_until_ready()
 
-        self.channel: TextChannel = self.bot.get_channel(BOT_CHANNEL)  # type: ignore
         self.status_manager = StatusManager(self)
-
-        async with aiosqlite.connect('bot.db') as db:
-            await self.init_db(db)
-
-            async with db.execute("SELECT version FROM meta") as cursor:
-                version = await cursor.fetchone()
-                if version:
-                    if version[0] != VERSION:
-                        # If we have updated, update the version in the DB
-                        await db.execute("UPDATE meta SET version = ?", (VERSION,))
-                        await db.commit()
-
-                        # Send an embed into the discord channel
-                        embed = Embed()
-                        embed.color = Color.orange()
-                        embed.set_author(
-                            name=f"The bot has been updated to v{VERSION}.", icon_url=CLOUDFLARE_IMG)
-
-                        await self.channel.send(embed=embed)  # type: ignore
-                else:
-                    await db.execute("INSERT INTO meta (version) VALUES (?)", (VERSION,))
-                    await db.commit()
-
-        # Start
-        await self.connect_websocket()
-
-    async def connect_websocket(self):
         getLogger("websockets.client").addHandler(
             WSLogHandler(self.status_manager))
 
         async for websocket in ws_connect('wss://api.beatleader.xyz/scores'):
-            self.ws_con_attempts = 0
-            self.ws_con_msg_id = 0
-
             await self.status_manager.handle_connect()
 
             try:
@@ -76,17 +49,30 @@ class BeatLeader(commands.Cog):
             except Exception as exception:
                 await self.status_manager.handle_exception(exception)
 
-    async def init_db(self, db):
-        await db.execute('''CREATE TABLE IF NOT EXISTS meta
-                            (version TEXT NOT NULL);''')
+    # ? Endpoints
+    @tasks.loop(seconds=30)
+    async def test_leaderboard(self):
+        channel_id = await self._get_channel()
+        channel: TextChannel = self.bot.get_channel(channel_id)
 
-        await db.commit()
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = "https://api.beatleader.xyz/v3/scores/518FD81AC6FDBFD050AB8FAC7C6AE7D73E16257A/Expert/Standard/standard/global/around"
+                params = {
+                    "player": "76561198157672038",
+                    "count": 10
+                }
+                async with session.get(url, params=params) as resp:
+                    if resp.status >= 400:
+                        embed = Embed(
+                            description=f"```{await resp.text()}```",
+                            color=Color.red()).set_author(name='Leaderboard endpoint sent non-200 error code.', icon_url=OFFLINE_IMG)
 
-    @ tasks.loop(seconds=3)
-    async def get_beatleader_latency(self):
-        self.bot.sl.append(measure_latency('beatleader.xyz'))
-        self.bot.average_latency = round(mean([x[0] for x in self.bot.sl]))
+                        await channel.send(embed=embed)
 
-    @ get_beatleader_latency.before_loop
-    async def before_my_task(self):
-        await self.bot.wait_until_ready()
+        except Exception as e:
+            embed = Embed(
+                description=f"```{e}```",
+                color=Color.red()).set_author(name='An unexpected exception occured on the leaderboard endpoint.', icon_url=OFFLINE_IMG)
+
+            await channel.send(embed=embed)
