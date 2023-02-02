@@ -2,17 +2,15 @@ import logging
 from os import getenv
 
 import aiosqlite
-from discord import Color, Embed, TextChannel
+import redis.asyncio as redis
 from dotenv import load_dotenv
-from nextcord import Activity, ActivityType, Status
+from nextcord import Activity, ActivityType, Color, Embed, Status, TextChannel
 from nextcord.ext import commands
 
 from commands import Commands
 from events import Events
 from modules.beatleader import BeatLeader
-import redis.asyncio as redis
 from modules.status_manager import CLOUDFLARE_IMG
-
 from version import VERSION
 
 load_dotenv()

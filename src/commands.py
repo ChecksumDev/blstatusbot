@@ -1,8 +1,8 @@
 import aiosqlite
 from nextcord import Interaction, slash_command
+from nextcord.abc import GuildChannel
 from nextcord.ext import commands
 from redis.asyncio import Redis
-from nextcord.abc import GuildChannel
 
 
 class Commands(commands.Cog):
