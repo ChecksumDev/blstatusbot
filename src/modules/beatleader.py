@@ -1,8 +1,10 @@
+from io import BytesIO
 from logging import getLogger
 from typing import Optional
+
 import aiohttp
 import aiosqlite
-from discord import Color, Embed, TextChannel
+from nextcord import Color, Embed, File, TextChannel
 from nextcord.ext import commands, tasks
 from redis.asyncio import Redis
 from websockets.client import connect as ws_connect
@@ -71,8 +73,16 @@ class BeatLeader(commands.Cog):
                         await channel.send(embed=embed)
 
         except Exception as e:
-            embed = Embed(
-                description=f"```{e}```",
-                color=Color.red()).set_author(name='An unexpected exception occured on the leaderboard endpoint.', icon_url=OFFLINE_IMG)
+            exception_str = str(e)
 
-            await channel.send(embed=embed)
+            if len(exception_str) > 3000:
+                file = BytesIO(exception_str.encode('utf-8'))
+                file.seek(0)
+                await channel.send("The exception was too large to be displayed in the embed, so it was sent as an attachment instead.", file=File(fp=file, filename="exception.txt"))
+
+            else:
+                embed = Embed(
+                    description=f"```{exception_str}```",
+                    color=Color.red()).set_author(name='An unexpected exception occured on the leaderboard endpoint.', icon_url=OFFLINE_IMG)
+
+                await channel.send(embed=embed)

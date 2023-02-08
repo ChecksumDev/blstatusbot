@@ -1,8 +1,8 @@
 import asyncio
 from logging import Handler
 from typing import Optional
-import aiosqlite
 
+import aiosqlite
 from nextcord import Color, Embed, Game, Message, Status, TextChannel
 from websockets.exceptions import ConnectionClosed, ConnectionClosedOK
 
