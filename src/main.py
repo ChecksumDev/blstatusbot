@@ -1,10 +1,12 @@
 import logging
+from datetime import datetime
 from os import getenv
 
 import aiosqlite
 import redis.asyncio as redis
 from dotenv import load_dotenv
-from nextcord import Activity, ActivityType, Color, Embed, Status, TextChannel
+from nextcord import (Activity, ActivityType, Color, Embed, Status,
+                      TextChannel, User)
 from nextcord.ext import commands
 
 from commands import Commands
@@ -21,6 +23,9 @@ logging.basicConfig(level=logging.INFO)
 class Client(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.websocket_connected = False
+        self.last_websocket_message = datetime.now()
 
         self.redis = redis.Redis()
         self.loop.create_task(self.startup())
@@ -44,6 +49,7 @@ class Client(commands.Bot):
 
     async def startup(self):
         await self.wait_until_ready()
+        logging.info(f"Logged in as {self.user}")
 
         async with aiosqlite.connect('bot.db') as db:
             await self.init_db(db)
@@ -68,11 +74,13 @@ class Client(commands.Bot):
                             embed.set_author(
                                 name=f"The bot has been updated to v{VERSION}.", icon_url=CLOUDFLARE_IMG)
 
-                            channel: TextChannel = self.get_channel(int(channel_id[0]))  # type: ignore
+                            channel: TextChannel = self.get_channel(
+                                int(channel_id[0]))  # type: ignore
                             await channel.send(embed=embed)
                     else:
                         await db.execute("INSERT INTO meta (version) VALUES (?)", (VERSION,))
                         await db.commit()
+
 
 client = Client(
     activity=Activity(type=ActivityType.playing,

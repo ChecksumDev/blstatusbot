@@ -16,6 +16,7 @@ CLOUDFLARE_IMG = 'https://media.discordapp.net/attachments/1068292632855457882/1
 class StatusManager:
     def __init__(self, bl) -> None:
         self.bl = bl
+        self.bot = bl.bot
 
         self.reconnect_attempts = 0
         self.reconnect_message: Optional[Message] = None
@@ -26,6 +27,7 @@ class StatusManager:
         else:
             self.reconnect_attempts = 0
             self.reconnect_message = None
+            self.bot.websocket_connected = True
 
             await self.bl.bot.change_presence(activity=Game('Connected to BeatLeader!'), status=Status.online)
 
