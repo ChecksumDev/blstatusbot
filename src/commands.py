@@ -1,6 +1,7 @@
 from datetime import date
 from unittest import mock
 
+import cooldowns
 import aiohttp
 import aiosqlite
 from nextcord import Color, Embed, Interaction, Message, slash_command
@@ -28,8 +29,9 @@ class Commands(commands.Cog):
             await db.commit()
             await interaction.send(f"Successfully set alert channel to {channel.mention}.")
 
-    @slash_command(description="Gets a realtime status check on all of our infrastructure.")
-    async def status_check(self, interaction: Interaction):
+    @slash_command(description="Gets a realtime health check on all of our infrastructure.")
+    @cooldowns.cooldown(1, 15, bucket=cooldowns.SlashBucket.author)
+    async def health(self, interaction: Interaction):
         websocket_connected = self.bot.websocket_connected  # type: int
         last_websocket_message = self.bot.last_websocket_message
 
