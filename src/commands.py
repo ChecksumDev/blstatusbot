@@ -100,7 +100,7 @@ class Commands(commands.Cog):
         # Final
         if failed_checks == 0:
             async with aiohttp.ClientSession() as session:
-                async with session.get("https://api.waifu.pics/sfw/smug") as resp:
+                async with session.get("https://api.waifu.pics/sfw/highfive") as resp:
                     waifu = await resp.json()
                     status_embed.set_image(waifu["url"])
 
