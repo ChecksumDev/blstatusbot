@@ -1,10 +1,7 @@
-from datetime import date
-from unittest import mock
-
-import cooldowns
 import aiohttp
 import aiosqlite
-from nextcord import Color, Embed, Interaction, Message, slash_command
+import cooldowns
+from nextcord import Color, Embed, File, Interaction, Message, slash_command
 from nextcord.abc import GuildChannel
 from nextcord.ext import commands
 from redis.asyncio import Redis
@@ -66,9 +63,9 @@ class Commands(commands.Cog):
 
         # Check if the main server is running by checking the current WebSocket connection
         if websocket_connected:  # TODO: Add "degraded" check for stale websocket
-            services_out += "<a:bl_pet:1073010219313021069> Main Server is **UP**.\n"
+            services_out += "<a:bl_pet:1073075425640722462> Main Server is **UP**.\n"
         else:
-            services_out += "<a:bl_onfire:1073008674882211951> Main Server is **DOWN**.\n"
+            services_out += "<a:bl_onfire:1073075852625055814> Main Server is **DOWN**.\n"
             failed_checks += 1
 
         status_embed.description = services_out
@@ -79,20 +76,22 @@ class Commands(commands.Cog):
             # ? Leaderboard
             async with session.get(leaderboard_endpoint["url"], params=leaderboard_endpoint["params"]) as resp:
                 if resp.status >= 400:
-                    services_out += "<a:bl_onfire:1073008674882211951> Leaderboards are **DOWN**\n"
+                    services_out += "<a:bl_onfire:1073075852625055814> Leaderboards are **DOWN**\n"
                     failed_checks += 1
+                    failed_errors += f"Leaderboard Endpoint:\n--------------------\n{resp.content}\n--------------------\n\n"
                 else:
-                    services_out += "<a:bl_pet:1073010219313021069> Leaderboards are **UP**\n"
+                    services_out += "<a:bl_pet:1073075425640722462> Leaderboards are **UP**\n"
 
             status_embed.description = services_out
             await message.edit(embed=status_embed)
 
             async with session.get(player_endpoint["url"], params=player_endpoint["params"]) as resp:
                 if resp.status >= 400:
-                    services_out += "<a:bl_onfire:1073008674882211951> Profiles are **DOWN**\n"
+                    services_out += "<a:bl_onfire:1073075852625055814> Profiles are **DOWN**\n"
                     failed_checks += 1
+                    failed_errors += f"Player Endpoint:\n--------------------\n{resp.content}\n--------------------\n\n"
                 else:
-                    services_out += "<a:bl_pet:1073010219313021069> Profiles are **UP**\n"
+                    services_out += "<a:bl_pet:1073075425640722462> Profiles are **UP**\n"
 
             status_embed.description = services_out
             await message.edit(embed=status_embed)
@@ -109,7 +108,7 @@ class Commands(commands.Cog):
                 "https://cdn.discordapp.com/emojis/1073015370497147051.webp?quality=lossless")
             status_embed.color = Color.green()
 
-            services_out += "\n**All services operational**"
+            services_out += "\n**<a:dealwithit:1073075502954332221> All services operational**"
 
         else:
             status_embed.color = Color.red()
@@ -119,9 +118,13 @@ class Commands(commands.Cog):
             status_embed.set_image(
                 "https://i.waifu.pics/UhbtpTF.gif")
 
-            services_out += f"\n**Some services are not operational.**"
+            services_out += f"\n**<a:bl_onfire:1073075852625055814> Some services are not operational.**"
 
             await message.channel.send(content="<@698212038106677259> THE SERVER IS ON FIRE.") # type: ignore
 
         status_embed.description = services_out
-        await message.edit(embed=status_embed)
+
+        if failed_errors == "":
+            await message.edit(embed=status_embed)
+        else:
+            await message.edit(embed=status_embed, file=File(failed_errors, "exceptions.log"))
