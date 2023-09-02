@@ -4,6 +4,7 @@ from json import loads
 from os import environ
 from typing import Optional
 from aiohttp import ClientResponse, ClientSession
+from discord import AllowedMentions
 from nextcord import ActivityType, Embed
 from nextcord import Intents, Activity
 from nextcord.ext import commands, tasks
@@ -36,6 +37,7 @@ class Client(Bot):
     WS_CONNECTED = False
     SERVER_OK = False
     CHANNEL_ID: int
+    USER_ID: int
     session: ClientSession
 
     def __init__(self):
@@ -43,8 +45,13 @@ class Client(Bot):
         if channel_id is None:
             exit("No channel ID provided.")
         
+        user_id = environ.get("USER_ID")
+        if user_id is None:
+            exit("No user ID provided.")
+
         self.CHANNEL_ID = int(channel_id)
-        super().__init__(intents=Intents.all())
+        self.USER_ID = int(user_id)
+        super().__init__(intents=Intents.all(), allowed_mentions=AllowedMentions.all())
 
     @tasks.loop(seconds=10)
     async def ping_beatleader(self):
@@ -63,8 +70,8 @@ class Client(Bot):
             embed.set_thumbnail(url=ASSETS[type])
             embed.timestamp = datetime.datetime.utcnow()
 
-            await channel.send(embed=embed)
-
+            status_msg = await channel.send(content=f"<@{self.USER_ID}>" if type != 0 else None, embed=embed)
+            await status_msg.publish()
 
     async def send_websocket_alert(self, type: int, err: Optional[Exception] = None):
         channel = await self.fetch_channel(self.CHANNEL_ID)
@@ -73,7 +80,8 @@ class Client(Bot):
             embed.set_thumbnail(url=ASSETS[type])
             embed.timestamp = datetime.datetime.utcnow()
             
-            await channel.send(embed=embed)
+            status_msg = await channel.send(content=f"<@{self.USER_ID}>" if type != 0 else None, embed=embed)
+            await status_msg.publish()
 
     async def connect_to_beatleader(self):
         async for websocket in connect("wss://api.beatleader.xyz/scores"):
@@ -82,18 +90,19 @@ class Client(Bot):
                     await self.send_websocket_alert(0)
                     self.WS_CONNECTED = True
 
-                data = await websocket.recv()
-                data = loads(data)
-                print(f"{data['player']['name']} just got a score of {data['modifiedScore']} on {data['leaderboard']['song']['name']} by {data['leaderboard']['song']['author']}") 
+                await websocket.recv()
+
             except ConnectionClosedOK:
                 self.WS_CONNECTED = False
                 await self.send_websocket_alert(1)
+
             except ConnectionClosedError as e:
                 self.WS_CONNECTED = False
                 if "cloudflare" in str(e):
                     await self.send_websocket_alert(3, e)
                 else:
                     await self.send_websocket_alert(2, e)
+
             except Exception as e:
                 self.WS_CONNECTED = False
                 await self.send_websocket_alert(2, e)
