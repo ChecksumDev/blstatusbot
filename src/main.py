@@ -27,7 +27,7 @@ WS_ERROR_COLORS = {
     3: 0xca7f24
 }
 
-ERROR_COLORS = {
+HTTP_ERROR_COLORS = {
     0: 0x1ea929,
     1: 0xCA2424,
 }
@@ -37,7 +37,7 @@ class Client(Bot):
     WS_CONNECTED = False
     SERVER_OK = False
     CHANNEL_ID: int
-    USER_ID: int
+    ROLE_ID: int
     session: ClientSession
 
     def __init__(self):
@@ -45,12 +45,12 @@ class Client(Bot):
         if channel_id is None:
             exit("No channel ID provided.")
         
-        user_id = environ.get("USER_ID")
-        if user_id is None:
-            exit("No user ID provided.")
+        role_id = environ.get("ROLE_ID")
+        if role_id is None:
+            exit("No role ID provided.")
 
         self.CHANNEL_ID = int(channel_id)
-        self.USER_ID = int(user_id)
+        self.ROLE_ID = int(role_id)
         super().__init__(intents=Intents.all(), allowed_mentions=AllowedMentions.all())
 
     @tasks.loop(seconds=10)
@@ -66,11 +66,11 @@ class Client(Bot):
     async def send_ping_alert(self, type: int, resp: Optional[ClientResponse] = None):
         channel = await self.fetch_channel(self.CHANNEL_ID)
         if channel is not None and isinstance(channel, TextChannel):
-            embed = Embed(title="Server Status", description=f"The server {['is online', 'is offline'][type]}.\n{f'```{await resp.text()}```' if resp is not None else '```All systems are operational.```'}", color=ERROR_COLORS[type]) 
+            embed = Embed(title="Server Status", description=f"The server {['is online', 'is offline'][type]}.\n{f'```{await resp.text()}```' if resp is not None else '```All systems are operational.```'}", color=HTTP_ERROR_COLORS[type]) 
             embed.set_thumbnail(url=ASSETS[type])
             embed.timestamp = datetime.datetime.utcnow()
 
-            status_msg = await channel.send(content=f"<@{self.USER_ID}>" if type != 0 else None, embed=embed)
+            status_msg = await channel.send(content=f"<@&{self.ROLE_ID}>" if type != 0 else None, embed=embed)
             await status_msg.publish()
 
     async def send_websocket_alert(self, type: int, err: Optional[Exception] = None):
@@ -80,7 +80,7 @@ class Client(Bot):
             embed.set_thumbnail(url=ASSETS[type])
             embed.timestamp = datetime.datetime.utcnow()
             
-            status_msg = await channel.send(content=f"<@{self.USER_ID}>" if type != 0 else None, embed=embed)
+            status_msg = await channel.send(content=f"<@&{self.ROLE_ID}>" if type != 0 else None, embed=embed)
             await status_msg.publish()
 
     async def connect_to_beatleader(self):
