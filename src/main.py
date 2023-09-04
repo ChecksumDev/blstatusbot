@@ -5,9 +5,10 @@ from typing import Optional
 
 from aiohttp import ClientResponse, ClientSession
 from discord import AllowedMentions
+from dotenv import load_dotenv
 from nextcord import Activity, ActivityType, Embed, Intents
 from nextcord.channel import TextChannel
-from nextcord.ext import commands, tasks
+from nextcord.ext import tasks
 from nextcord.ext.commands import Bot
 from websockets.client import connect
 from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
@@ -61,10 +62,10 @@ class Client(Bot):
     @tasks.loop(seconds=5)
     async def ping_beatleader(self):
         async with self.session.get("https://beatleader.xyz/") as resp:
-            if resp.status == 200 and self.SERVER_OK == False:
+            if resp.status == 200 and not self.SERVER_OK:
                 self.SERVER_OK = True
                 await self.send_ping_alert(0)
-            elif resp.status != 200 and self.SERVER_OK == True:
+            elif resp.status != 200 and self.SERVER_OK:
                 self.SERVER_OK = False
                 await self.send_ping_alert(1, resp)
 
@@ -126,16 +127,14 @@ class Client(Bot):
                 continue
 
     async def on_ready(self):
-        self.session = ClientSession()
-
-        await self.connect_to_beatleader()
-        self.ping_beatleader.start()    
-        
+        self.session = ClientSession()        
+        self.ping_beatleader.start()
         self.update_status.start()
 
-
-
+        await self.connect_to_beatleader()
 
 if __name__ == "__main__":
+    load_dotenv()
+
     bot = Client()
     bot.run(environ.get("TOKEN"))
