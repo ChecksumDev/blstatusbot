@@ -1,17 +1,19 @@
-from asyncio import run
-import datetime
+from datetime import datetime
 from json import loads
 from os import environ
 from typing import Optional
+
 from aiohttp import ClientResponse, ClientSession
 from discord import AllowedMentions
-from nextcord import ActivityType, Embed
-from nextcord import Intents, Activity
+from nextcord import Activity, ActivityType, Embed, Intents
+from nextcord.channel import TextChannel
 from nextcord.ext import commands, tasks
 from nextcord.ext.commands import Bot
-from nextcord.channel import TextChannel
 from websockets.client import connect
 from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
+
+from stats import (HOURLY_MAPS, HOURLY_SCORES, HOURLY_USERS, map_add,
+                   score_add, user_add)
 
 ASSETS = {
     0: "https://media.discordapp.net/attachments/1068292632855457882/1068292759045283840/online.png?width=512&height=512",
@@ -31,7 +33,6 @@ HTTP_ERROR_COLORS = {
     0: 0x1ea929,
     1: 0xCA2424,
 }
-
 
 class Client(Bot):
     WS_CONNECTED = False
@@ -53,7 +54,11 @@ class Client(Bot):
         self.ROLE_ID = int(role_id)
         super().__init__(intents=Intents.all(), allowed_mentions=AllowedMentions.all())
 
-    @tasks.loop(seconds=10)
+    @tasks.loop(seconds=60)
+    async def update_status(self):
+        await self.change_presence(activity=Activity(type=ActivityType.watching, name=f"BeatLeader | {len(HOURLY_SCORES)} scores set by {len(HOURLY_USERS)} users on {len(HOURLY_MAPS)} maps in the last hour."))
+        
+    @tasks.loop(seconds=5)
     async def ping_beatleader(self):
         async with self.session.get("https://beatleader.xyz/") as resp:
             if resp.status == 200 and self.SERVER_OK == False:
@@ -62,26 +67,30 @@ class Client(Bot):
             elif resp.status != 200 and self.SERVER_OK == True:
                 self.SERVER_OK = False
                 await self.send_ping_alert(1, resp)
-                
+
     async def send_ping_alert(self, type: int, resp: Optional[ClientResponse] = None):
         channel = await self.fetch_channel(self.CHANNEL_ID)
         if channel is not None and isinstance(channel, TextChannel):
             embed = Embed(title="Server Status", description=f"The server {['is online', 'is offline'][type]}.\n{f'```{await resp.text()}```' if resp is not None else '```All systems are operational.```'}", color=HTTP_ERROR_COLORS[type]) 
             embed.set_thumbnail(url=ASSETS[type])
-            embed.timestamp = datetime.datetime.utcnow()
+            embed.timestamp = datetime.utcnow()
 
             status_msg = await channel.send(content=f"<@&{self.ROLE_ID}>" if type != 0 else None, embed=embed)
-            await status_msg.publish()
+            
+            if channel.is_news():
+                await status_msg.publish()
 
     async def send_websocket_alert(self, type: int, err: Optional[Exception] = None):
         channel = await self.fetch_channel(self.CHANNEL_ID)
         if channel is not None and isinstance(channel, TextChannel):
             embed = Embed(title="Websocket Status", description=f"The websocket {['has connected successfully', 'is reconnecting', 'has disconnected', 'is having issues with cloudflare'][type]}.\n{f'```{err}```' if err is not None else '```All systems are operational.```'}", color=WS_ERROR_COLORS[type])
             embed.set_thumbnail(url=ASSETS[type])
-            embed.timestamp = datetime.datetime.utcnow()
+            embed.timestamp = datetime.utcnow()
             
             status_msg = await channel.send(content=f"<@&{self.ROLE_ID}>" if type != 0 else None, embed=embed)
-            await status_msg.publish()
+            
+            if channel.is_news():
+                await status_msg.publish()
 
     async def connect_to_beatleader(self):
         async for websocket in connect("wss://api.beatleader.xyz/scores"):
@@ -90,31 +99,43 @@ class Client(Bot):
                     await self.send_websocket_alert(0)
                     self.WS_CONNECTED = True
 
-                await websocket.recv()
+                score = await websocket.recv()
+                score = loads(score)
 
-            except ConnectionClosedOK:
+                score_add()
+                user_add(score["player"]["id"])
+                map_add(score["leaderboard"]["song"]["id"])
+
+            except ConnectionClosedOK as e:
                 self.WS_CONNECTED = False
-                await self.send_websocket_alert(1)
+                await self.send_websocket_alert(1, e)
+                continue
 
             except ConnectionClosedError as e:
                 self.WS_CONNECTED = False
                 if "cloudflare" in str(e):
                     await self.send_websocket_alert(3, e)
+                    continue
                 else:
                     await self.send_websocket_alert(2, e)
+                    continue
 
             except Exception as e:
                 self.WS_CONNECTED = False
                 await self.send_websocket_alert(2, e)
+                continue
 
     async def on_ready(self):
         self.session = ClientSession()
         self.ping_beatleader.start()
+        self.update_status.start()
 
         if self.user is not None:
             print(f"Logged in as {self.user} (ID: {self.user.id})")
             await self.change_presence(activity=Activity(type=ActivityType.watching, name="BeatLeader"))
             await self.connect_to_beatleader()
+
+
 
 if __name__ == "__main__":
     bot = Client()
