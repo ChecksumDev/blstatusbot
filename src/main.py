@@ -95,12 +95,12 @@ class Client(Bot):
     async def connect_to_beatleader(self):
         async for websocket in connect("wss://api.beatleader.xyz/scores"):
             try:
-                if not self.WS_CONNECTED and websocket.open:
+                if not self.WS_CONNECTED:
                     await self.send_websocket_alert(0)
                     self.WS_CONNECTED = True
 
-                score = await websocket.recv()
-                score = loads(score)
+                data = await websocket.recv()
+                score = loads(data)
 
                 score_add()
                 user_add(score["player"]["id"])
@@ -127,13 +127,12 @@ class Client(Bot):
 
     async def on_ready(self):
         self.session = ClientSession()
-        self.ping_beatleader.start()
+
+        await self.connect_to_beatleader()
+        self.ping_beatleader.start()    
+        
         self.update_status.start()
 
-        if self.user is not None:
-            print(f"Logged in as {self.user} (ID: {self.user.id})")
-            await self.change_presence(activity=Activity(type=ActivityType.watching, name="BeatLeader"))
-            await self.connect_to_beatleader()
 
 
 
