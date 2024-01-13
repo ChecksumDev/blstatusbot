@@ -140,11 +140,9 @@ class Client(Bot):
                 self.WS_CONNECTED = False
                 if "cloudflare" in str(e):
                     await self.send_websocket_alert(3, e)
-                    continue
                 else:
                     await self.send_websocket_alert(2, e)
-                    continue
-
+                continue
             except Exception as e:
                 self.WS_CONNECTED = False
                 await self.send_websocket_alert(2, e)
