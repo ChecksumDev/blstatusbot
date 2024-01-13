@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from json import loads
 from os import environ
 from typing import Optional
@@ -41,6 +41,8 @@ class Client(Bot):
     CHANNEL_ID: int
     ROLE_ID: int
     session: ClientSession
+    last_score_time: datetime = None
+    score_status_message = None
 
     def __init__(self):
         channel_id = environ.get("CHANNEL_ID")
@@ -68,6 +70,27 @@ class Client(Bot):
             elif resp.status != 200 and self.SERVER_OK:
                 self.SERVER_OK = False
                 await self.send_ping_alert(1, resp)
+
+    @tasks.loop(seconds=10)
+    async def check_score_delay(self):
+        channel = await self.fetch_channel(self.CHANNEL_ID)
+        if not channel:
+            return
+
+        if self.last_score_time:
+            time_diff = datetime.utcnow() - self.last_score_time
+            status_text = f"Last score was posted {time_diff.total_seconds() // 60} minutes and {time_diff.total_seconds() % 60} seconds ago."
+        else:
+            status_text = "Waiting for the first score to be posted."
+
+        if self.score_status_message:
+            await self.score_status_message.edit(content=status_text)
+        else:
+            self.score_status_message = await channel.send(status_text)
+
+        if time_diff and time_diff > timedelta(minutes=1):
+            await channel.send(f"<@&{self.ROLE_ID}> More than a minute has passed since the last score was posted.")
+            self.score_status_message = None
 
     async def send_ping_alert(self, type: int, resp: Optional[ClientResponse] = None):
         channel = await self.fetch_channel(self.CHANNEL_ID)
@@ -106,6 +129,7 @@ class Client(Bot):
                 score_add()
                 user_add(score["player"]["id"])
                 map_add(score["leaderboard"]["song"]["id"])
+                self.last_score_time = datetime.utcnow()
 
             except ConnectionClosedOK as e:
                 self.WS_CONNECTED = False
@@ -130,6 +154,7 @@ class Client(Bot):
         self.session = ClientSession()        
         self.ping_beatleader.start()
         self.update_status.start()
+        self.check_score_delay.start()
 
         await self.connect_to_beatleader()
 
